@@ -1,0 +1,110 @@
+#include <stdio.h>​
+
+#include <cuda_runtime.h>​
+
+#include <chrono>​
+
+​
+
+// GPU ve CPU arasında veri transfer sürelerini ölçen fonksiyon​
+
+void measure_transfer(size_t size) {​
+
+    int *h_data, *d_data1, *d_data2;​
+
+​
+
+    // Bellek tahsis et (CPU ve GPU)​
+
+    h_data = (int *)malloc(size);​
+
+    cudaMalloc((void **)&d_data1, size);​
+
+    cudaMalloc((void **)&d_data2, size);​
+
+​
+
+    // Veriyi CPU → GPU (H2D) gönderme süresini ölç​
+
+    auto start = std::chrono::high_resolution_clock::now();​
+
+    cudaMemcpy(d_data1, h_data, size, cudaMemcpyHostToDevice);​
+
+    cudaDeviceSynchronize();​
+
+    auto end = std::chrono::high_resolution_clock::now();​
+
+    double h2d_time = std::chrono::duration<double, std::milli>(end - start).count();​
+
+    printf("CPU → GPU (H2D) süresi: %.2f ms\n", h2d_time);​
+
+​
+
+    // Veriyi GPU → CPU (D2H) geri gönderme süresini ölç​
+
+    start = std::chrono::high_resolution_clock::now();​
+
+    cudaMemcpy(h_data, d_data1, size, cudaMemcpyDeviceToHost);​
+
+    cudaDeviceSynchronize();​
+
+    end = std::chrono::high_resolution_clock::now();​
+
+    double d2h_time = std::chrono::duration<double, std::milli>(end - start).count();​
+
+    printf("GPU → CPU (D2H) süresi: %.2f ms\n", d2h_time);​
+
+​
+
+    // GPU içinde veri kopyalama süresi (D2D)​
+
+    start = std::chrono::high_resolution_clock::now();​
+
+    cudaMemcpy(d_data2, d_data1, size, cudaMemcpyDeviceToDevice);​
+
+    cudaDeviceSynchronize();​
+
+    end = std::chrono::high_resolution_clock::now();​
+
+    double d2d_time = std::chrono::duration<double, std::milli>(end - start).count();​
+
+    printf("GPU → GPU (D2D) süresi: %.2f ms\n", d2d_time);​
+
+​
+
+    // Belleği temizle​
+
+    free(h_data);​
+
+    cudaFree(d_data1);​
+
+    cudaFree(d_data2);​
+
+}​
+
+
+// measure_transfer fonksiyonunu çağıran ana program​
+
+int main() {​
+
+    printf("1MB veri transferi:\n");​
+
+    measure_transfer(1 * 1024 * 1024);​
+
+​
+
+    printf("\n10MB veri transferi:\n");​
+
+    measure_transfer(10 * 1024 * 1024);​
+
+​
+
+    printf("\n100MB veri transferi:\n");​
+
+    measure_transfer(100 * 1024 * 1024);​
+
+​
+
+    return 0;​
+
+}​

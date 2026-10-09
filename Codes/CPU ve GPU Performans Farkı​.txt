@@ -1,0 +1,185 @@
+#include <stdio.h>​
+
+#include <stdlib.h>​
+
+#include <cuda.h>​
+
+#include <chrono>​
+
+​
+
+// Matris boyutu​
+
+#define N 1024​
+
+​
+
+// GPU üzerinde matris çarpımı kernel fonksiyonu​
+
+_global_ void matrixMulGPU(int *a, int *b, int *c, int n) {​
+
+    int row = blockIdx.y * blockDim.y + threadIdx.y;​
+
+    int col = blockIdx.x * blockDim.x + threadIdx.x;​
+
+​
+
+    if (row < n && col < n) {​
+
+        int sum = 0;​
+
+        for (int k = 0; k < n; k++) {​
+
+            sum += a[row * n + k] * b[k * n + col];​
+
+        }​
+
+        c[row * n + col] = sum;​
+
+    }​
+
+}​
+
+​
+
+// CPU üzerinde matris çarpımı fonksiyonu​
+
+void matrixMulCPU(int *a, int *b, int *c, int n) {​
+
+    for (int i = 0; i < n; i++) {​
+
+        for (int j = 0; j < n; j++) { ​
+
+            int sum = 0;​
+
+            for (int k = 0; k < n; k++) {​
+
+                sum += a[i * n + k] * b[k * n + j];​
+
+            }​
+
+            c[i * n + j] = sum;​
+
+        }​
+
+    }​
+
+}​
+int main() {​
+
+    int size = N * N * sizeof(int);​
+
+    int *h_a, *h_b, *h_c_cpu, *h_c_gpu;​
+
+    int *d_a, *d_b, *d_c;​
+
+​
+
+    // Bellek tahsisi (CPU)​
+
+    h_a = (int *)malloc(size);​
+
+    h_b = (int *)malloc(size);​
+
+    h_c_cpu = (int *)malloc(size);​
+
+    h_c_gpu = (int *)malloc(size);​
+
+​
+
+    // Matrisleri rastgele doldur​
+
+    for (int i = 0; i < N * N; i++) {​
+
+        h_a[i] = rand() % 100;​
+
+        h_b[i] = rand() % 100;​
+
+    } ​
+
+}​
+  // CPU'da matris çarpımı​
+
+    auto start = std::chrono::high_resolution_clock::now();​
+
+    matrixMulCPU(h_a, h_b, h_c_cpu, N);​
+
+    auto end = std::chrono::high_resolution_clock::now();​
+
+    double cpu_time = std::chrono::duration<double, std::milli>(end - start).count();​
+
+    printf("CPU süresi: %.2f ms\n", cpu_time);​
+
+​
+
+    // Bellek tahsisi (GPU)​
+
+    cudaMalloc((void **)&d_a, size);​
+
+    cudaMalloc((void **)&d_b, size);​
+
+    cudaMalloc((void **)&d_c, size);​
+
+​
+
+    // Veriyi GPU'ya kopyala​
+
+    cudaMemcpy(d_a, h_a, size, cudaMemcpyHostToDevice);​
+
+    cudaMemcpy(d_b, h_b, size, cudaMemcpyHostToDevice);​
+
+​  // Kernel çağrısı (her blok 16x16 thread içerir)​
+
+    dim3 threadsPerBlock(16, 16);​
+
+    dim3 blocksPerGrid((N + 15) / 16, (N + 15) / 16);​
+
+​
+
+    start = std::chrono::high_resolution_clock::now();​
+
+    matrixMulGPU<<<blocksPerGrid, threadsPerBlock>>>(d_a, d_b, d_c, N);​
+
+    cudaDeviceSynchronize();​
+
+    end = std::chrono::high_resolution_clock::now();​
+
+    double gpu_time = std::chrono::duration<double, std::milli>(end - start).count();  ​
+
+    printf("GPU süresi: %.2f ms\n", gpu_time);​
+
+​
+
+    // Sonucu geri kopyala​
+
+    cudaMemcpy(h_c_gpu, d_c, size, cudaMemcpyDeviceToHost);​
+
+​
+
+    // Belleği temizle​
+
+    free(h_a); ​
+
+    free(h_b); ​
+
+    free(h_c_cpu); ​
+
+    free(h_c_gpu);​
+
+​
+
+    cudaFree(d_a);​
+
+    cudaFree(d_b);​
+
+    cudaFree(d_c);​
+
+​
+
+    return 0;​
+
+}​
+
+​
+
+​
